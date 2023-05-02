@@ -3,7 +3,8 @@
 // The agent has a belief about the location of the W3C Web of Thing (WoT) Thing Description (TD)
 // that describes a Thing of type https://ci.mines-stetienne.fr/kg/ontology#PhantomX
 robot_td("https://raw.githubusercontent.com/Interactions-HSG/example-tds/main/tds/leubot1.ttl").
-
+can_achieve(G) :- .relevant_plans({+!G[scheme(_)]}, LP) & LP \== [].
+has_api_key("b4098db9875227c77cb9927076b4145a").
 /* Initial goals */
 !start. // the agent has the goal to start
 
@@ -17,6 +18,22 @@ robot_td("https://raw.githubusercontent.com/Interactions-HSG/example-tds/main/td
 +!start : true <-
 	.print("Hello world").
 
++looking_for_member(WspName, OrgName, OpenGoal, OpenRole) : true <-
+	joinWorkspace(WspName, WspId);
+	lookupArtifact(OrgName, OrgArtId);
+	focus(OrgArtId);
+	!take_role_if_achieveable(OpenGoal, OpenRole).
+
++!take_role_if_achieveable(OpenGoal, OpenRole) : group(GrpName, _, _) & scheme(SchemeName, _, _) <-
+	lookupArtifact(GrpName, Grp2Id);
+	focus(Grp2Id);
+	lookupArtifact(SchemeName, Scheme2Id);
+	focus(Scheme2Id);
+	//check if acting_agent can achieve this
+	?can_achieve(OpenGoal);
+	//take on role
+	adoptRole(OpenRole).
+
 /* 
  * Plan for reacting to the addition of the goal !manifest_temperature
  * Triggering event: addition of goal !manifest_temperature
@@ -26,7 +43,7 @@ robot_td("https://raw.githubusercontent.com/Interactions-HSG/example-tds/main/td
  * movement of the robotic arm. Then, manifests the temperature with the robotic arm
 */
 @manifest_temperature_plan 
-+!manifest_temperature : temperature(Celcius) & robot_td(Location) <-
++!manifest_temperature : temperature(Celcius) & robot_td(Location) & has_api_key(ApiKey) <-
 	.print("I will manifest the temperature: ", Celcius);
 	makeArtifact("covnerter", "tools.Converter", [], ConverterId); // creates a converter artifact
 	convert(Celcius, -20.00, 20.00, 200.00, 830.00, Degrees)[artifact_id(ConverterId)]; // converts Celcius to binary degress based on the input scale
@@ -37,10 +54,10 @@ robot_td("https://raw.githubusercontent.com/Interactions-HSG/example-tds/main/td
 	 * follow the instructions here: https://github.com/HSG-WAS-SS23/exercise-8/blob/main/README.md#test-with-the-real-phantomx-reactor-robot-arm
 	 */
 	// creates a ThingArtifact based on the TD of the robotic arm
-	makeArtifact("leubot1", "wot.ThingArtifact", [Location, true], Leubot1Id); 
+	makeArtifact("leubot1", "wot.ThingArtifact", [Location, false], Leubot1Id); 
 	
 	// sets the API key for controlling the robotic arm as an authenticated user
-	//setAPIKey("77d7a2250abbdb59c6f6324bf1dcddb5")[artifact_id(leubot1)];
+	setAPIKey(ApiKey)[artifact_id(leubot1)];
 
 	// invokes the action onto:SetWristAngle for manifesting the temperature with the wrist of the robotic arm
 	invokeAction("https://ci.mines-stetienne.fr/kg/ontology#SetWristAngle", ["https://www.w3.org/2019/wot/json-schema#IntegerSchema"], [Degrees])[artifact_id(leubot1)].

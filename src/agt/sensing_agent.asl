@@ -2,6 +2,14 @@
 
 
 /* Initial beliefs and rules */
+role_goal(R, G) :-
+	role_mission(R, _, M) & mission_goal(M, G).
+
+can_achieve (G) :-
+	.relevant_plans({+!G[scheme(_)]}, LP) & LP \== [].
+
+i_have_plans_for(R) :-
+	not (role_goal(R, G) & not can_achieve(G)).
 
 /* Initial goals */
 !start. // the agent has the goal to start
@@ -16,6 +24,28 @@
 +!start : true <-
 	.print("Hello world").
 
+/* 
+ * Plan for reacting to the addition of the belief +created_org
+ * Triggering event: addition of belief created_org with 2 string variables
+ * Context: a new organization was created and broadcast with its information
+ * Body: workspace name, organization name
+*/
++created_org(WspName, OrgName) : true <-
+	joinWorkspace(WspName, WspId);
+	lookupArtifact(OrgName, OrgArtId);
+	focus(OrgArtId);
+	!join_group.
+
+
++!join_group : group(GrpName, _, _) & scheme(SchemeName, _, _) & role_goal(R, G) & can_achieve(G) <-
+	lookupArtifact(GrpName, GrpId);
+	focus(GrpId);
+	lookupArtifact(SchemeName, SchemeId);
+	focus(SchemeId);
+	adoptRole(R);
+	.print("can do role:", R);
+	.print("to achieve: ", G).
+ 
 /* 
  * Plan for reacting to the addition of the goal !read_temperature
  * Triggering event: addition of goal !read_temperature

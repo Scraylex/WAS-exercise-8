@@ -4,6 +4,9 @@
 org_name("lab_monitoring_org"). // the agent beliefs that it can manage organizations with the id "lab_monitoting_org"
 group_name("monitoring_team"). // the agent beliefs that it can manage groups with the id "monitoring_team"
 sch_name("monitoring_scheme"). // the agent beliefs that it can manage schemes with the id "monitoring_scheme"
+wsp_name("lukas_workshop"). // the agent beliefs that it can manage organizations with the id "lukas_workshop"
+
+role_goal(R, G) :- role_mission(R, _, M) & mission_goal(M, G).
 
 /* Initial goals */
 !start. // the agent has the goal to start
@@ -15,8 +18,20 @@ sch_name("monitoring_scheme"). // the agent beliefs that it can manage schemes w
  * Body: greets the user
 */
 @start_plan
-+!start : org_name(OrgName) & group_name(GroupName) & sch_name(SchemeName) <-
-  .print("Hello world").
++!start : org_name(OrgName) & group_name(GroupName) & sch_name(SchemeName) & wsp_name(WspName) <-
+  createWorkspace(WspName);
+  joinWorkspace(WspName, WspId);
+  //create everything via OrgBoard
+  makeArtifact(OrgName, "ora4mas.nopl.OrgBoard", ["src/org/org-spec.xml"], OrgArtId);
+  createGroup(GroupName, GroupName, GrpArtId);
+  createScheme(SchemeName, SchemeName, SchArtId);
+  //focusing up
+  focus(OrgArtId);
+  focus(GrpArtId);
+  focus(SchArtId);
+  .broadcast(tell, created_org(WspName, OrgName));
+  ?formationStatus(ok)[artifact_id(GrpArtId)];
+  addScheme(SchemeName)[artifact_id(GrpArtId)].
 
 /* 
  * Plan for reacting to the addition of the test-goal ?formationStatus(ok)
@@ -28,7 +43,22 @@ sch_name("monitoring_scheme"). // the agent beliefs that it can manage schemes w
 @test_formation_status_is_ok_plan
 +?formationStatus(ok)[artifact_id(G)] : group(GroupName,_,G)[artifact_id(OrgName)] <-
   .print("Waiting for group ", GroupName," to become well-formed");
+  !fill_roles;
   .wait({+formationStatus(ok)[artifact_id(G)]}). // waits until the belief is added in the belief base
+
+ +!fill_roles : role_filed(R) & wsp_name(WspName) & org_name(OrgName)<-
+    .print("role filled: ", R);
+    .findall(G, (role_goal(Role,G) & R \== Role), L);
+    .print("open goals: ", L);
+    L = [OpenGoal];
+    ?role_goal(OpenRole, OpenGoal)
+    .broadcast(tell, looking_for_member(WspName, OrgName, OpenGoal, OpenRole)).
+
+
++!fill_roles : true <-
+    //wait for 15 seconds
+    .wait(15000);
+    !fill_roles.
 
 /* 
  * Plan for reacting to the addition of the goal !inspect(OrganizationalArtifactId)
@@ -53,7 +83,8 @@ sch_name("monitoring_scheme"). // the agent beliefs that it can manage schemes w
 */
 @play_plan
 +play(Ag, Role, GroupId) : true <-
-  .print("Agent ", Ag, " adopted the role ", Role, " in group ", GroupId).
+  .print("Agent ", Ag, " adopted the role ", Role, " in group ", GroupId);
+  +role_filed(Role).
 
 /* Import behavior of agents that work in CArtAgO environments */
 { include("$jacamoJar/templates/common-cartago.asl") }
